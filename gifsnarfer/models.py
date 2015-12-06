@@ -6,8 +6,9 @@ from urlparse import urlparse
 from cStringIO import StringIO
 import requests
 import md5
+import os
 
-engine = create_engine('sqlite:///test.db')
+engine = create_engine('sqlite:///{}/test.db'.format(os.path.dirname(os.path.realpath(__file__))))
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
 Base = declarative_base()
