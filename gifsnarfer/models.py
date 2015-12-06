@@ -21,75 +21,92 @@ class ModelBase(Base):
     def by_id(cls, id):
         return session.query(cls).filter_by(id=id).first()
 
+    @classmethod
+    def all(cls):
+        return session.query(cls).all()
+
     def save(self):
         session.add(self)
         session.commit()
+
 
 class Gif(ModelBase):
     __tablename__ = 'gifs'
 
     md5sum = Column(String(32), unique=True)
     firstseen_on = Column(DateTime, default = dt.utcnow())
-    urls = relationship('Url', backref='gif')
+    urls = relationship('GifUrl', backref='gif')
 
     def __init__(self, md5sum):
         self.md5sum = md5sum
-        #self.save()
+        self.save()
 
     @classmethod
-    def get_by_md5(cls, m5dsum):
-        existing_gif = session.query(Gif).filter(Gif.m5dsum==md5sum).first()
+    def get_by_md5(cls, md5sum):
+        existing_gif = session.query(Gif).filter(Gif.md5sum==md5sum).first()
         return Gif(md5sum=md5sum) if existing_gif is None else existing_gif
 
-class Url(ModelBase):
-    __tablename__ = 'urls'
+class GifUrl(ModelBase):
+    __tablename__ = 'gif_urls'
 
     url = Column(String)
     url_hash = Column(String(32), unique=True)
 
     gif_id = Column(Integer, ForeignKey('gifs.id'))
-    usage_id = Column(Integer, ForeignKey('uses.id'))
+    usage = relationship('Usage', uselist=False, backref='gif_url')
 
     def __init__(self, url):
         self.url = url
         self.url_hash = md5.new(self.url).hexdigest()
-        #self.save()
+        self.save()
 
     @classmethod
     def get(cls, url):
-        existing_url = session.query(Url).filter(Url.url_hash==md5.new(url).hexdigest()).first()
-        return Url(url=url) if existing_url is None else existing_url
-    
+        existing_url = session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).first()
+        return GifUrl(url=url) if existing_url is None else existing_url
+
+    @classmethod
+    def get_by_gif_id(cls, id):
+        return session.query(cls).filter(cls.gif_id==id)
+   
     @classmethod
     def exists(cls, url):
-        return session.query(Url).filter(Url.url_hash==md5.new(url).hexdigest()).count() > 0
+        return session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).count() > 0
 
 class Usage(ModelBase):
     __tablename__ = 'uses'
 
-    gif_url_id = Column(Integer, ForeignKey('urls.id'))
-    gif_url = relationship(Url, primaryjoin=gif_url_id == Url.id)
+    gif_url_id = Column(Integer, ForeignKey('gif_urls.id'))
 
-    usage_url_id = Column(Integer, ForeignKey('urls.id'))
-    usage_url = relationship(Url, primaryjoin=usage_url_id == Url.id)
+    url = Column(String, nullable=False)
+    url_hash = Column(String(32), unique=True, nullable=False)
 
     title = Column(String, nullable=False)
     used_on  = Column(DateTime, default=dt.utcnow())
 
     def __init__(self, title, usage_url, gif_url):
-        if Url.exists(usage_url):
+        if Usage.exists(usage_url):
             raise ValueError('Usage already exists!')
 
-        self.get_gif(gif_url)
         self.title = title
-        self.usage_url = Url(usage_url)
-        self.gif_url = Url.get(gif_url)
+        self.url = usage_url
+        self.url_hash = md5.new(self.url).hexdigest()
+        self.process_gif(gif_url)
         self.save()
 
-    def get_gif(self, url):
+    @classmethod
+    def get_all_by_gif(cls, gif):
+        """ every use has one gif url but every gif can have more than one url """
+        return session.query(cls).join(GifUrl).filter(cls.gif_url_id==GifUrl.id).join(Gif).filter(GifUrl.gif_id==gif.id).all()
+
+    @classmethod
+    def exists(cls, url):
+        return session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).count() > 0
+
+    def process_gif(self, url):
         """ retrive gif from db or dload it and create a new record of it """
-        if Url.exists(url):
-            self.gif = Url.get(url).gif
+        if GifUrl.exists(url):
+            self.gif = GifUrl.get(url).gif
         else:
             req = requests.get(self._safe_url(url), stream=True)
             check_header = True
@@ -97,15 +114,19 @@ class Usage(ModelBase):
 
             for chunk in req.iter_content(chunk_size=1024):
                 if check_header:
+                    # because fuck you GIF87a 
                     if chunk[0:6] == 'GIF89a':
                         check_header = False
                     else:
                         raise ValueError('File at this URL is not a GIF!')
 
                 buf.write(chunk)
-            
-            self.gif = Gif(md5sum=md5.new(buf.getvalue()).hexdigest())
-                    
+            # record the URL for this usage of the gif
+            self.gif_url = GifUrl(url=url)
+            # associate this usage with a (new or existing) gif record by the checksum of the gif found at the url
+            self.gif = Gif.get_by_md5(md5sum=md5.new(buf.getvalue()).hexdigest())
+            # add an entry to gif_urls table and associate it with the gif record 
+            self.gif.urls.append(self.gif_url)
 
     def _safe_url(self, url):
         """ try to be clever about getting an image url """
