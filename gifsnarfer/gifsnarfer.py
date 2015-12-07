@@ -31,20 +31,21 @@ def snarf_gifs():
         subs = configured_subs.split(',')
 
     for sub in subs:
-        for submission in reddit.get_subreddit(sub).get_hot(limit=50):
+        for submission in reddit.get_subreddit(sub).get_hot(limit=25):
             oboe.start_trace('snarfer')
 
             parsed = urlparse(submission.url)
             # good chance of a gif in these two scenarios
             if 'imgur.com' in parsed.netloc  or submission.url.endswith('.gif'):
                 title = submission.title
-                author = submission.author
+                author = submission.author.name
                 usage_url = submission.permalink
                 gif_url = submission.url
                 ups = submission.ups
                 try:
-                    Usage(title=title, usage_url=usage_url, gif_url=gif_url, upvotes=ups)
+                    Usage(title=title, usage_url=usage_url, gif_url=gif_url, upvotes=ups, author=author)
                 except Exception as e:
+                    logger.error(e)
                     oboe.log_exception()
                     continue
 

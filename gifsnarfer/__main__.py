@@ -1,3 +1,3 @@
 
-from .gifsnarfer import main
+from gifsnarfer import main
 main()
