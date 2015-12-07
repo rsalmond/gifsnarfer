@@ -4,6 +4,11 @@ from sqlalchemy import create_engine, DateTime, Column, Integer, String, Foreign
 from datetime import datetime as dt
 from urlparse import urlparse
 from cStringIO import StringIO
+
+import logging
+logger = logging.getLogger(__name__)
+
+import oboe
 import requests
 import md5
 import os
@@ -29,7 +34,6 @@ class ModelBase(Base):
     def save(self):
         session.add(self)
         session.commit()
-
 
 class Gif(ModelBase):
     __tablename__ = 'gifs'
@@ -81,16 +85,25 @@ class Usage(ModelBase):
 
     url = Column(String, nullable=False)
     url_hash = Column(String(32), unique=True, nullable=False)
-
     title = Column(String, nullable=False)
+    upvotes = Column(Integer, nullable=False)
     used_on  = Column(DateTime, default=dt.utcnow())
 
-    def __init__(self, title, usage_url, gif_url):
-        if Usage.exists(usage_url):
-            raise ValueError('Usage already exists!')
+    def __init__(self, title, usage_url, gif_url, upvotes):
+        previous_usage = Usage.get_by_url(usage_url)
+        if previous_usage is not None:
+            if upvotes > previous_usage.upvotes:
+                logger.debug('Usage already recorded, updating new upvote count.')
+                previous_usage.upvotes = upvotes
+                previous_usage.save()
+                return
+            else:
+                logger.debug('Usage already recorded, skipping.')
+                return
 
         self.title = title
         self.url = usage_url
+        self.upvotes = upvotes
         self.url_hash = md5.new(self.url).hexdigest()
         self.process_gif(gif_url)
         self.save()
@@ -104,6 +117,11 @@ class Usage(ModelBase):
     def exists(cls, url):
         return session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).count() > 0
 
+    @classmethod
+    def get_by_url(cls, url):
+        return session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).first()
+
+    @oboe.log_method('process_gif')
     def process_gif(self, url):
         """ retrive gif from db or dload it and create a new record of it """
         if GifUrl.exists(url):
@@ -119,7 +137,8 @@ class Usage(ModelBase):
                     if chunk[0:6] == 'GIF89a':
                         check_header = False
                     else:
-                        raise ValueError('File at this URL is not a GIF!')
+                        logger.debug('File at this URL is not a GIF, skipping.')
+                        return
 
                 buf.write(chunk)
             # record the URL for this usage of the gif
@@ -129,16 +148,17 @@ class Usage(ModelBase):
             # add an entry to gif_urls table and associate it with the gif record 
             self.gif.urls.append(self.gif_url)
 
+    @classmethod
     def _safe_url(self, url):
         """ try to be clever about getting an image url """
         parsed = urlparse(url)
         if 'imgur.com' in parsed.netloc:
             if '.' in parsed.path:
                 split = parsed.path.split('.')
-                # imgur .gifv urls are just html witha flash webm player, so fall back to .gif
-                if split[1] == '.gifv':
+                # imgur .gifv urls are just html with a flash webm player so fall back to .gif
+                if split[1] == 'gifv':
                     newpath = split[0]
-                    return parsed.scheme + parsed.netloc + newpath + '.gif'
+                    return '{}://{}{}.gif'.format(parsed.scheme, parsed.netloc, newpath)
                 else:
                     return url
             else:
