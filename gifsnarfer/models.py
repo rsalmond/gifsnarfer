@@ -93,7 +93,7 @@ class Usage(ModelBase):
     def __init__(self, title=None, usage_url=None, gif_url=None, upvotes=None, author=None):
         previous_usage = Usage.get_by_url(usage_url)
         if previous_usage is not None:
-            if upvotes > previous_usage.upvotes:
+            if upvotes != previous_usage.upvotes:
                 logger.debug('Usage already recorded, updating new upvote count.')
                 previous_usage.upvotes = upvotes
                 previous_usage.save()
