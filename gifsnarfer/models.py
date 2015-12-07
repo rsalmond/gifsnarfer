@@ -87,9 +87,10 @@ class Usage(ModelBase):
     url_hash = Column(String(32), unique=True, nullable=False)
     title = Column(String, nullable=False)
     upvotes = Column(Integer, nullable=False)
+    author = Column(String(32), nullable=False)
     used_on  = Column(DateTime, default=dt.utcnow())
 
-    def __init__(self, title, usage_url, gif_url, upvotes):
+    def __init__(self, title=None, usage_url=None, gif_url=None, upvotes=None, author=None):
         previous_usage = Usage.get_by_url(usage_url)
         if previous_usage is not None:
             if upvotes > previous_usage.upvotes:
@@ -104,9 +105,12 @@ class Usage(ModelBase):
         self.title = title
         self.url = usage_url
         self.upvotes = upvotes
+        self.author = author
         self.url_hash = md5.new(self.url).hexdigest()
         self.process_gif(gif_url)
-        self.save()
+        if hasattr(self, 'gif'):
+            # if we successfully found or created a new gif record associated with this Usage, save it
+            self.save()
 
     @classmethod
     def get_all_by_gif(cls, gif):
@@ -141,6 +145,7 @@ class Usage(ModelBase):
                         return
 
                 buf.write(chunk)
+
             # record the URL for this usage of the gif
             self.gif_url = GifUrl(url=url)
             # associate this usage with a (new or existing) gif record by the checksum of the gif found at the url
