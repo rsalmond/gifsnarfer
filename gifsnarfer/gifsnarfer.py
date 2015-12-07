@@ -1,17 +1,26 @@
+import logging
+from logging.config import fileConfig
+fileConfig('logging.ini')
+logger = logging.getLogger(__name__)
+
 from models import  Gif, GifUrl, Usage, session, Base, engine
 from urlparse import urlparse
 import argparse
 import os
 import praw
+import oboe
 
 __version__ = 0.1
 user_agent = 'gifsnarfer/{}'.format(__version__)
+oboe.config['tracing_mode'] = 'always'
 
 def snarf_gifs():
     env_var = 'GIFSNARFER_SUBS'
 
     reddit = praw.Reddit(user_agent=user_agent)
     configured_subs = os.environ.get(env_var)
+
+    logger.info('Starting to snarf!')
 
     if configured_subs is None:
         print 'Error: subreddit environment variable not found!'
@@ -22,6 +31,8 @@ def snarf_gifs():
 
     for sub in subs:
         for submission in reddit.get_subreddit(sub).get_hot():
+            oboe.start_trace('snarfer')
+
             parsed = urlparse(submission.url)
             # good chance of a gif in these two scenarios
             if 'imgur.com' in parsed.netloc  or submission.url.endswith('.gif'):
@@ -29,12 +40,16 @@ def snarf_gifs():
                 author = submission.author
                 usage_url = submission.permalink
                 gif_url = submission.url
+                ups = submission.ups
                 try:
-                    Usage(title=title, usage_url=usage_url, gif_url=gif_url)
-                except ValueError as e:
-                    print e.message
-                    print usage_url
+                    Usage(title=title, usage_url=usage_url, gif_url=gif_url, upvotes=ups)
+                except Exception as e:
+                    oboe.log_exception()
+                    continue
 
+            oboe.end_trace('snarfer')
+
+    logger.info('Snarf complete!')
 
 def report_gifs():
     for gif in Gif.all():
