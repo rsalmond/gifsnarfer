@@ -1,12 +1,13 @@
 import logging
 from logging.config import fileConfig
-fileConfig('logging.ini')
+import os
+
+fileConfig('{}/logging.ini'.format(os.path.dirname(os.path.realpath(__file__))))
 logger = logging.getLogger(__name__)
 
 from models import  Gif, GifUrl, Usage, session, Base, engine
 from urlparse import urlparse
 import argparse
-import os
 import praw
 import oboe
 
@@ -30,7 +31,7 @@ def snarf_gifs():
         subs = configured_subs.split(',')
 
     for sub in subs:
-        for submission in reddit.get_subreddit(sub).get_hot():
+        for submission in reddit.get_subreddit(sub).get_hot(limit=50):
             oboe.start_trace('snarfer')
 
             parsed = urlparse(submission.url)
