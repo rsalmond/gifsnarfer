@@ -137,8 +137,7 @@ class Usage(ModelBase):
 
             for chunk in req.iter_content(chunk_size=1024):
                 if check_header:
-                    # because fuck you GIF87a 
-                    if chunk[0:6] == 'GIF89a':
+                    if chunk[0:6] in  ('GIF89a', 'GIF87a'):
                         check_header = False
                     else:
                         logger.debug('File at this URL is not a GIF, skipping.')
