@@ -9,11 +9,13 @@ from models import  Gif, GifUrl, Usage, session, Base, engine
 from urlparse import urlparse
 import argparse
 import praw
+from oboeware.loader import load_inst_modules
 import oboe
 
 __version__ = 0.1
 user_agent = 'gifsnarfer/{}'.format(__version__)
 oboe.config['tracing_mode'] = 'always'
+load_inst_modules()
 
 def snarf_gifs():
     env_var = 'GIFSNARFER_SUBS'
