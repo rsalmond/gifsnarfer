@@ -38,7 +38,7 @@ def snarf_gifs():
 
             parsed = urlparse(submission.url)
             # good chance of a gif in these two scenarios
-            if 'imgur.com' in parsed.netloc  or submission.url.endswith('.gif'):
+            if 'imgur.com' in parsed.netloc  or parsed.path.endswith('.gif'):
                 title = submission.title
                 author = submission.author.name
                 usage_url = submission.permalink
@@ -55,21 +55,34 @@ def snarf_gifs():
 
     logger.info('Snarf complete!')
 
-def report_gifs():
+def report_gifs(multi=False):
+    """ report gifs sorted by number of upvotes per use
+     optionally filter to only gifs used multiple times """
+    gifscores = [] 
     for gif in Gif.all():
         uses = Usage.get_all_by_gif(gif)
-        if len(uses) > 1:
-            for use in uses:
-                print use.url, use.title, use.used_on
+        gifscores.append({
+            'score_per_use': sum([use.upvotes for use in uses]) / len(uses),
+            'uses': len(uses),
+            'url': GifUrl.by_id(uses[0].gif_url_id).url})
+
+    from pprint import pprint
+    for thing in sorted(gifscores, key=lambda k: k['score_per_use']):
+        if multi:
+            if thing['uses'] > 1:
+                pprint(thing)
+        else:
+            pprint(thing)
 
 def main():
     parser = argparse.ArgumentParser(description='Snarf gifs found on the front page of your favourite subreddits.')
     parser.add_argument('--report', action='store_true', help='generate a report')
+    parser.add_argument('--multi', action='store_true', help='report only gifs with multiple uses')
     parser.add_argument('--version', action='version', version=user_agent)
     args = parser.parse_args()
 
     if args.report:
-        report_gifs()
+        report_gifs(args.multi)
     else:
         snarf_gifs()
 
