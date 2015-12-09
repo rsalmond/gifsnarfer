@@ -31,6 +31,10 @@ class ModelBase(Base):
     def all(cls):
         return session.query(cls).all()
 
+    @classmethod
+    def count(cls):
+        return session.query(cls).count()
+
     def save(self):
         session.add(self)
         session.commit()

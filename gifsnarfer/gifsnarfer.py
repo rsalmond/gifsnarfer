@@ -55,9 +55,15 @@ def snarf_gifs():
 
     logger.info('Snarf complete!')
 
-def report_gifs(multi=False):
+def report_gifs(multi=False, count=False):
     """ report gifs sorted by number of upvotes per use
      optionally filter to only gifs used multiple times """
+
+    if count:
+        print 'gifs: {}'.format(Gif.count())
+        print 'gif urls: {}'.format(GifUrl.count())
+        print 'uses: {}'.format(Usage.count())
+
     gifscores = [] 
     for gif in Gif.all():
         uses = Usage.get_all_by_gif(gif)
@@ -77,12 +83,13 @@ def report_gifs(multi=False):
 def main():
     parser = argparse.ArgumentParser(description='Snarf gifs found on the front page of your favourite subreddits.')
     parser.add_argument('--report', action='store_true', help='generate a report')
+    parser.add_argument('--count', action='store_true', help='produce total count of records')
     parser.add_argument('--multi', action='store_true', help='report only gifs with multiple uses')
     parser.add_argument('--version', action='version', version=user_agent)
     args = parser.parse_args()
 
     if args.report:
-        report_gifs(args.multi)
+        report_gifs(multi=args.multi, count=args.count)
     else:
         snarf_gifs()
 
