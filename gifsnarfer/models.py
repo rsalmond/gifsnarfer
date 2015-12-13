@@ -2,6 +2,7 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.orm import sessionmaker,relationship, backref
 from sqlalchemy import create_engine, DateTime, Column, Integer, String, ForeignKey
 from datetime import datetime as dt
+from datetime import timedelta
 from urlparse import urlparse
 from cStringIO import StringIO
 
@@ -164,6 +165,11 @@ class Usage(ModelBase):
             self.gif = Gif.get_by_md5(md5sum=md5.new(buf.getvalue()).hexdigest())
             # add an entry to gif_urls table and associate it with the gif record 
             self.gif.urls.append(self.gif_url)
+
+    def recent(self):
+        """ return true if use occurred recently """
+        last_day =  dt.utcnow() - timedelta(days=1)
+        return self.used_on > last_day
 
     @classmethod
     def _safe_url(self, url, extension='gif'):

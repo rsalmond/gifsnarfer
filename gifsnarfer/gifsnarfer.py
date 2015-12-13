@@ -69,11 +69,13 @@ def report_gifs(multi=False, count=False, html=False, dump_all=False):
     gifscores = [] 
     for gif in Gif.all():
         uses = Usage.get_all_by_gif(gif)
-        gifscores.append({
-            'score_per_use': sum([use.upvotes for use in uses]) / len(uses),
-            'uses': len(uses),
-            'imgur_id': GifUrl.by_id(uses[0].gif_url_id).get_imgur_id(),
-            'url': GifUrl.by_id(uses[0].gif_url_id).url })
+        use = uses[0]
+        if use.recent():
+            gifscores.append({
+                'score_per_use': sum([use.upvotes for use in uses]) / len(uses),
+                'uses': len(uses),
+                'imgur_id': GifUrl.by_id(use.gif_url_id).get_imgur_id(),
+                'url': GifUrl.by_id(use.gif_url_id).url })
 
     env = Environment(loader=PackageLoader(__name__, 'templates'))
     template = env.get_template('gif.html')
