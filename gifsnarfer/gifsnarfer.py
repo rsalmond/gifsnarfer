@@ -6,7 +6,9 @@ fileConfig('{}/logging.ini'.format(os.path.dirname(os.path.realpath(__file__))))
 logger = logging.getLogger(__name__)
 
 from models import  Gif, GifUrl, Usage, session, Base, engine
+from jinja2 import Environment, PackageLoader
 from urlparse import urlparse
+from pprint import pprint
 import argparse
 import praw
 from oboeware.loader import load_inst_modules
@@ -55,7 +57,7 @@ def snarf_gifs():
 
     logger.info('Snarf complete!')
 
-def report_gifs(multi=False, count=False):
+def report_gifs(multi=False, count=False, html=False, dump_all=False):
     """ report gifs sorted by number of upvotes per use
      optionally filter to only gifs used multiple times """
 
@@ -70,26 +72,42 @@ def report_gifs(multi=False, count=False):
         gifscores.append({
             'score_per_use': sum([use.upvotes for use in uses]) / len(uses),
             'uses': len(uses),
-            'url': GifUrl.by_id(uses[0].gif_url_id).url})
+            'imgur_id': GifUrl.by_id(uses[0].gif_url_id).get_imgur_id(),
+            'url': GifUrl.by_id(uses[0].gif_url_id).url })
 
-    from pprint import pprint
-    for thing in sorted(gifscores, key=lambda k: k['score_per_use']):
-        if multi:
-            if thing['uses'] > 1:
-                pprint(thing)
-        else:
-            pprint(thing)
+    env = Environment(loader=PackageLoader(__name__, 'templates'))
+    template = env.get_template('gif.html')
+    gifs=sorted(gifscores, key=lambda k: k['score_per_use'], reverse=True)
+
+    if not dump_all:
+        gifs = gifs[:30]
+
+    if html:
+        print template.render(gifs=gifs)
+    else:
+        for gif in gifs:
+            pprint(gif)
+
+    #from pprint import pprint
+    #for thing in sorted(gifscores, key=lambda k: k['score_per_use']):
+    #    if multi:
+    #        if thing['uses'] > 1:
+    #            pprint(thing)
+    #    else:
+    #        pprint(thing)
 
 def main():
     parser = argparse.ArgumentParser(description='Snarf gifs found on the front page of your favourite subreddits.')
     parser.add_argument('--report', action='store_true', help='generate a report')
+    parser.add_argument('--html', action='store_true', help='produce html output')
+    parser.add_argument('--all', action='store_true', help='report every gif in the db')
     parser.add_argument('--count', action='store_true', help='produce total count of records')
     parser.add_argument('--multi', action='store_true', help='report only gifs with multiple uses')
     parser.add_argument('--version', action='version', version=user_agent)
     args = parser.parse_args()
 
     if args.report:
-        report_gifs(multi=args.multi, count=args.count)
+        report_gifs(multi=args.multi, count=args.count, html=args.html, dump_all=args.all)
     else:
         snarf_gifs()
 

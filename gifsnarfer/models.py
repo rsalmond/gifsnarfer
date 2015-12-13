@@ -82,6 +82,15 @@ class GifUrl(ModelBase):
     def exists(cls, url):
         return session.query(cls).filter(cls.url_hash==md5.new(url).hexdigest()).count() > 0
 
+    def get_imgur_id(self):
+        parsed = urlparse(self.url)
+        if 'imgur' in parsed.netloc:
+            path = parsed.path.replace('/','')
+            if '.' in path:
+                return path.split('.')[0]
+            else:
+                return path
+
 class Usage(ModelBase):
     __tablename__ = 'uses'
 
@@ -157,20 +166,21 @@ class Usage(ModelBase):
             self.gif.urls.append(self.gif_url)
 
     @classmethod
-    def _safe_url(self, url):
+    def _safe_url(self, url, extension='gif'):
         """ try to be clever about getting an image url """
         parsed = urlparse(url)
         if 'imgur.com' in parsed.netloc:
             if '.' in parsed.path:
                 split = parsed.path.split('.')
+                newpath = split[0]
+                    
                 # imgur .gifv urls are just html with a flash webm player so fall back to .gif
                 if split[1] == 'gifv':
-                    newpath = split[0]
-                    return '{}://{}{}.gif'.format(parsed.scheme, parsed.netloc, newpath)
+                    return '{}://{}{}.{}'.format(parsed.scheme, parsed.netloc, newpath, extension)
                 else:
                     return url
             else:
                 # handle links to imgur viewer pages http://imgur.com/lfL0UvH
-                return  parsed.geturl() + '.gif'
+                return  '{}.{}'.format(parsed.geturl(), extension)
         else:
             return url
