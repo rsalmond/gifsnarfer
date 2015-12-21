@@ -66,6 +66,11 @@ def report_gifs(multi=False, count=False, html=False, dump_all=False):
         print 'gif urls: {}'.format(GifUrl.count())
         print 'uses: {}'.format(Usage.count())
 
+    #TODO: iterate all uses in the last 24 hours
+    #   - break down by subreddit
+    #   - normalize per subreddit upvotes
+    #   - return top gifs ranked by normalized upvote
+
     gifscores = [] 
     for gif in Gif.all():
         uses = Usage.get_all_by_gif(gif)
